@@ -9,15 +9,18 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.transaction.annotation.Transactional;
+import com.back.p67260811.domain.member.service.MemberService;
 
 @Configuration
 @RequiredArgsConstructor
 public class BaseInitData {
 
+
     @Autowired
     @Lazy
     private BaseInitData self;
     private final PostService postService;
+    private final MemberService memberService;
     @Bean
     ApplicationRunner initDataRunner() {
         return args -> {
@@ -27,6 +30,20 @@ public class BaseInitData {
 
     @Transactional
     public void work1() {
+        if(memberService.count() > 0) {
+            return;
+        }
+
+        memberService.join("system", "system", "시스템");
+        memberService.join("admin", "admin", "운영자");
+        memberService.join("user1", "1234", "유저1");
+        memberService.join("user2", "1234", "유저2");
+        memberService.join("user3", "1234", "유저3");
+
+    }
+
+    @Transactional
+    public void work2() {
         if (postService.count() > 0) {
             return;
         }
