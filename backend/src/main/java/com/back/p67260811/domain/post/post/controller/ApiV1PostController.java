@@ -1,9 +1,14 @@
 package com.back.p67260811.domain.post.post.controller;
 
+import com.back.p67260811.domain.member.entity.Member;
+import com.back.p67260811.domain.member.service.MemberService;
 import com.back.p67260811.domain.post.post.dto.PostDto;
 import com.back.p67260811.domain.post.post.entity.Post;
 import com.back.p67260811.domain.post.post.service.PostService;
 import com.back.p67260811.global.dto.RsData;
+import com.back.p67260811.global.exception.ServiceException;
+import com.back.p67260811.global.rq.Rq;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -17,9 +22,12 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/posts")
+@SecurityRequirement(name = "bearerAuth")
 public class ApiV1PostController {
 
     private final PostService postService;
+    private final MemberService memberService;
+    private final Rq rq;
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public List<PostDto> list() {
@@ -60,7 +68,9 @@ public class ApiV1PostController {
     public RsData<PostDto> write(
             @Valid @RequestBody PostWriteReqBody reqBody
     ) {
-        Post post = postService.write(reqBody.title, reqBody.content);
+
+        Member actor = rq.getActor(); // 짝퉁 Member
+        Post post = postService.write(actor, reqBody.title, reqBody.content);
         return new RsData<>(
                 "201-1",
                 "%d번 글이 성공적으로 등록되었습니다".formatted(post.getId()),
@@ -85,7 +95,11 @@ public class ApiV1PostController {
             @PathVariable int id,
             @Valid @RequestBody PostModifyReqBody reqBody
     ) {
+
+        Member actor = rq.getActor();
         Post post = postService.findById(id).get();
+        post.checkActorModify(actor);
+
         postService.modify(post, reqBody.title, reqBody.content);
 
         return new RsData<>(
@@ -98,6 +112,11 @@ public class ApiV1PostController {
     public RsData<Void> delete(
             @PathVariable int id
     ) {
+
+        Member actor = rq.getActor();
+        Post post = postService.findById(id).get();
+        post.checkActorDelete(actor);
+
         postService.delete(id);
 
         return new RsData<>(
@@ -105,4 +124,6 @@ public class ApiV1PostController {
                 "%d번 게시물이 삭제되었습니다.".formatted(id)
         );
     }
+
+    // 인증 처리 메서드
 }

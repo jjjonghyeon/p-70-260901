@@ -1,10 +1,14 @@
 package com.back.p67260811.domain.post.post.controller;
 
+import com.back.p67260811.domain.member.entity.Member;
+import com.back.p67260811.domain.member.repository.MemberRepository;
 import com.back.p67260811.domain.post.post.entity.Post;
 import com.back.p67260811.domain.post.post.repository.PostRepository;
+import com.back.p67260811.standard.Ut;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
@@ -12,6 +16,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
@@ -30,6 +36,15 @@ public class ApiV1PostControllerTest {
 
     @Autowired
     private PostRepository postRepository;
+
+    @Autowired
+    private MemberRepository memberRepository;
+
+    @Value("${custom.jwt.secret-key}")
+    private String secretPattern;
+
+    @Value("${custom.jwt.expireMills}")
+    private long expireSeconds;
 
     @Test
     @DisplayName("글 다건 조회")
@@ -55,7 +70,9 @@ public class ApiV1PostControllerTest {
                 .andExpect(jsonPath("$[0].createDate").exists())
                 .andExpect(jsonPath("$[0].modifyDate").exists())
                 .andExpect(jsonPath("$[0].title").value("제목3"))
-                .andExpect(jsonPath("$[0].content").value("내용3"));
+                .andExpect(jsonPath("$[0].content").value("내용3"))
+                .andExpect(jsonPath("$[0].nickname").value("유저2"))
+                .andExpect(jsonPath("$[0].username").value("user2"));
     }
 
     @Test
@@ -68,6 +85,7 @@ public class ApiV1PostControllerTest {
                 .perform(
                         post("/api/v1/posts")
                                 .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer user1")
                                 .content("""
                                         {
                                             "title": "%s",
@@ -87,7 +105,9 @@ public class ApiV1PostControllerTest {
                 .andExpect(jsonPath("$.data.createDate").exists())
                 .andExpect(jsonPath("$.data.modifyDate").exists())
                 .andExpect(jsonPath("$.data.title").value(title))
-                .andExpect(jsonPath("$.data.content").value(content));
+                .andExpect(jsonPath("$.data.content").value(content))
+                .andExpect(jsonPath("$.data.nickname").value("유저1"))
+                .andExpect(jsonPath("$.data.username").value("user1"));
 
 
     }
@@ -103,6 +123,7 @@ public class ApiV1PostControllerTest {
                 .perform(
                         patch("/api/v1/posts/%d".formatted(targetId))
                                 .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer user1")
                                 .content("""
                                         {
                                             "title": "%s",
@@ -149,7 +170,10 @@ public class ApiV1PostControllerTest {
                 .andExpect(jsonPath("$.createDate").exists())
                 .andExpect(jsonPath("$.modifyDate").exists())
                 .andExpect(jsonPath("$.title").value("제목1"))
-                .andExpect(jsonPath("$.content").value("내용1"));
+                .andExpect(jsonPath("$.content").value("내용1"))
+                .andExpect(jsonPath("$.nickname").value("유저1"))
+                .andExpect(jsonPath("$.username").value("user1"));
+
 
     }
 
@@ -161,6 +185,7 @@ public class ApiV1PostControllerTest {
         ResultActions resultActions = mvc
                 .perform(
                         delete("/api/v1/posts/%d".formatted(targetId))
+                                .header("Authorization", "Bearer user1")
                 )
                 .andDo(print());
 
@@ -187,6 +212,7 @@ public class ApiV1PostControllerTest {
                 .perform(
                         post("/api/v1/posts")
                                 .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer user1")
                                 .content("""
                                         {
                                             "title": "%s",
@@ -204,7 +230,6 @@ public class ApiV1PostControllerTest {
                 .andExpect(jsonPath("$.msg").value("title-NotBlank-제목을 입력해주세요.\ntitle-Size-제목은 2글자 이상 10글자 이하로 작성해주세요."));
 
 
-
     }
 
 
@@ -218,6 +243,7 @@ public class ApiV1PostControllerTest {
                 .perform(
                         post("/api/v1/posts")
                                 .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer user1")
                                 .content("""
                                         {
                                             "title": "%s",
@@ -260,5 +286,38 @@ public class ApiV1PostControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.resultCode").value("400-2"))
                 .andExpect(jsonPath("$.msg").value("잘못된 형식의 요청 데이터입니다."));
+    }
+
+    @Test
+    @DisplayName("글 작성, 유효한 엑세스 토큰, 잘못된 apiKey")
+    void t9() throws Exception {
+        String title = "제목입니다";
+        String content = "내용입니다";
+        Member author = memberRepository.findByUsername("user1").get();
+
+        String accessToken = Ut.jwt.toString(
+                secretPattern,
+                expireSeconds,
+                Map.of("id", author.getId(), "username", author.getUsername())
+        );
+
+        ResultActions resultActions = mvc
+                .perform(
+                        post("/api/v1/posts")
+                                .header("Authorization", "Bearer apsdifjaiofjoaei %s".formatted(accessToken))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {
+                                            "title": "%s",
+                                            "content": "%s"
+                                        }
+                                        """.formatted(title, content))
+                )
+                .andDo(print());
+
+        resultActions
+                .andExpect(handler().handlerType(ApiV1PostController.class))
+                .andExpect(handler().methodName("write"))
+                .andExpect(status().isCreated());
     }
 }

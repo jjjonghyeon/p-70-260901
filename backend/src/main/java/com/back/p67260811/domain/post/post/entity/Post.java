@@ -1,10 +1,10 @@
 package com.back.p67260811.domain.post.post.entity;
 
+import com.back.p67260811.domain.member.entity.Member;
 import com.back.p67260811.domain.post.comment.entity.PostComment;
+import com.back.p67260811.global.exception.ServiceException;
 import com.back.p67260811.global.jpa.entity.BaseEntity;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Entity;
-import jakarta.persistence.OneToMany;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -18,14 +18,17 @@ public class Post extends BaseEntity {
     private String title;
     private String content;
 
-    public Post(String title, String content) {
-        this.title = title;
-        this.content = content;
-    }
-
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Member author; // 외래키인 id만 사용
 
     @OneToMany(mappedBy = "post", cascade = {CascadeType.PERSIST, CascadeType.REMOVE}, orphanRemoval = true)
     List<PostComment> comments = new ArrayList<>();
+
+    public Post(Member author, String title, String content) {
+        this.author = author;
+        this.title = title;
+        this.content = content;
+    }
 
     public PostComment findCommentById(int id) {
         return comments
@@ -63,5 +66,17 @@ public class Post extends BaseEntity {
         // 비즈니스 규칙
         this.title = title;
         this.content = content;
+    }
+
+    public void checkActorModify(Member actor) {
+        if(!this.author.equals(actor)) {
+            throw new ServiceException("403-1", "수정 권한이 없습니다.");
+        }
+    }
+
+    public void checkActorDelete(Member actor) {
+        if(!this.author.equals(actor)) {
+            throw new ServiceException("403-2", "삭제 권한이 없습니다.");
+        }
     }
 }
